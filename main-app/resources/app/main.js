@@ -2360,20 +2360,33 @@ async function doDistribute({ articleName, platformKey, accountId = null, autoSu
     await new Promise(r => setTimeout(r, 3000))  // 等编辑区渲染
 
     // ⑤ 填表（默认不自动提交，安全）
-    const script = diyi.buildFillScript(platformKey, article)
+    const coverPath = diyi.getCover(articleName)
+    const coverUrl = diyi.coverToUrl(coverPath)
+    const script = diyi.buildFillScript(platformKey, article, { coverUrl })
     const fill = await view.webContents.executeJavaScript(script).catch(e => ({ error: e.message }))
 
-    // 仅当显式 autoSubmit 才尝试点击发布
+    // 封面上传：若平台是 file-input 型，用 CDP 注入本地文件（真正的自动上传）
+    let coverUpload = null
+    if (coverPath && fill && fill.cover === 'file-input') {
+      coverUpload = await injectCoverFile(view, coverPath)
+    }
+
+    // ⑥ 自动提交：仅当平台已被标记为「已验证」才放行（安全阀，防误发/反爬）
+    const verified = store.get('verifiedPlatforms', [])
     let submit = null
     if (autoSubmit) {
-      submit = await view.webContents.executeJavaScript(`
-        (function(){
-          var b=[].slice.call(document.querySelectorAll('button'));
-          var p=b.find(function(x){return /发布|发表|提交|保存并发布/.test(x.textContent);});
-          if(p){p.click();return {clicked:true,text:p.textContent.trim()};}
-          return {clicked:false};
-        })()
-      `).catch(e => ({ error: e.message }))
+      if (verified.includes(platformKey)) {
+        submit = await view.webContents.executeJavaScript(`
+          (function(){
+            var b=[].slice.call(document.querySelectorAll('button'));
+            var p=b.find(function(x){return /发布|发表|提交|保存并发布/.test(x.textContent);});
+            if(p){p.click();return {clicked:true,text:p.textContent.trim()};}
+            return {clicked:false};
+          })()
+        `).catch(e => ({ error: e.message }))
+      } else {
+        submit = { skipped: true, reason: '平台【' + platform.name + '】尚未标记为「已验证」，已降级为填表不自动提交（安全）' }
+      }
     }
 
     return {
@@ -2382,8 +2395,10 @@ async function doDistribute({ articleName, platformKey, accountId = null, autoSu
       account: acc.name,
       article: article.title,
       fill,
+      coverPath: coverPath ? path.basename(coverPath) : null,
+      coverUpload,
       submit,
-      note: autoSubmit ? '已尝试提交' : '已填表，请在右侧浏览器人工确认后点击发布'
+      note: autoSubmit && verified.includes(platformKey) ? '已尝试提交' : '已填表（含封面），请在右侧浏览器人工确认后点击发布'
     }
   } catch (e) {
     return { success: false, message: e.message }
@@ -2392,6 +2407,51 @@ async function doDistribute({ articleName, platformKey, accountId = null, autoSu
 
 ipcMain.handle('diyi:distribute', async (_, args) => {
   try { return await doDistribute(args) } catch (e) { return { success: false, error: e.message } }
+})
+
+// ========== 封面图 CDP 注入（真正的自动上传，绕过 file input 安全限制）==========
+async function injectCoverFile(view, coverPath) {
+  try {
+    if (!view || view.isDestroyed()) return false
+    const wc = view.webContents
+    if (wc.debugger && wc.debugger.isAttached()) return false
+    await wc.debugger.attach('1.3')
+    const { root } = await wc.debugger.sendCommand('DOM.getDocument', { depth: -1 })
+    const r = await wc.debugger.sendCommand('DOM.querySelector', { nodeId: root.nodeId, selector: 'input[type="file"]' })
+    if (r && r.nodeId) {
+      await wc.debugger.sendCommand('DOM.setFileInputFiles', { nodeId: r.nodeId, files: [coverPath] })
+      return true
+    }
+    return false
+  } catch (e) { return false }
+  finally { try { await view.webContents.debugger.detach() } catch (e) {} }
+}
+
+// ========== 本地资产服务（暴露本地封面/图片为 URL，供填表「封面图URL」）==========
+function startAssetServer() {
+  const fs = require('fs'); const path = require('path')
+  const diyi = require('./diyi-distribute')
+  const server = http.createServer((req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*')
+    const urlPath = decodeURIComponent((req.url || '/').split('?')[0])
+    let fpath = null
+    if (urlPath.startsWith('/covers/')) fpath = path.join(diyi.COVERS_DIR, path.basename(urlPath))
+    else if (urlPath.startsWith('/generated-articles/')) fpath = path.join(diyi.ARTICLES_DIR, path.basename(urlPath))
+    if (fpath && fs.existsSync(fpath) && /\.(png|jpe?g|gif|webp)$/i.test(fpath)) {
+      res.setHeader('Content-Type', 'image/png')
+      fs.createReadStream(fpath).pipe(res)
+    } else { res.statusCode = 404; res.end('not found') }
+  })
+  server.listen(18766, '127.0.0.1', () => console.log('[D&E Media] 资产服务已启动: http://127.0.0.1:18766'))
+}
+
+// ========== 平台「已验证」白名单管理（自动提交安全阀）==========
+ipcMain.handle('diyi:verify-platform', (_, { platformKey, verified }) => {
+  const list = store.get('verifiedPlatforms', [])
+  if (verified) { if (!list.includes(platformKey)) list.push(platformKey) }
+  else { const i = list.indexOf(platformKey); if (i >= 0) list.splice(i, 1) }
+  store.set('verifiedPlatforms', list)
+  return { success: true, verifiedPlatforms: list }
 })
 
 // ========== 本地 HTTP 分发服务（供后台 automation 远程触发）==========
@@ -2423,8 +2483,9 @@ function startDistributeServer() {
     console.log('[D&E Media] 分发 HTTP 服务已启动: http://127.0.0.1:18765')
   })
 }
-if (app.isReady()) startDistributeServer()
-else app.whenReady().then(() => startDistributeServer())
+function bootServers() { startDistributeServer(); startAssetServer() }
+if (app.isReady()) bootServers()
+else app.whenReady().then(() => bootServers())
 
 // ========== 左侧功能面板大小调整 ==========
 ipcMain.handle('panel:resize', async (_, { widthPx, heightPercent, collapsed }) => {

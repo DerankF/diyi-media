@@ -3457,7 +3457,8 @@
       for (const p of plats) {
         log.value += '→ ' + p + ' ...\n'
         try {
-          const r = await window.api.diyiDistribute({ articleName: name, platformKey: p, accountId, autoSubmit: false })
+          const autoSubmit = document.getElementById('diyi-autosubmit')?.checked || false
+          const r = await window.api.diyiDistribute({ articleName: name, platformKey: p, accountId, autoSubmit })
           if (r.success) {
             log.value += '  ✅ ' + r.platform + ': ' + r.note + '\n'
           } else if (r.needLogin) {
@@ -3471,6 +3472,13 @@
         log.scrollTop = log.scrollHeight
       }
       log.value += '\n完成。请在右侧浏览器逐个确认各平台内容后手动点击发布。'
+    }
+
+    async function verifyCurrentPlatforms(v) {
+      const plats = [].slice.call(document.querySelectorAll('#diyi-platforms input:checked')).map(c => c.value)
+      if (!plats.length) return alert('请先勾选要标记的平台')
+      for (const p of plats) { await window.api.diyiVerifyPlatform({ platformKey: p, verified: v }) }
+      alert((v ? '已标记为「已验证」（允许自动提交）: ' : '已取消验证: ') + plats.join(', '))
     }
 
     // ==================== 发布内容 ====================
@@ -4769,6 +4777,11 @@
           <option value="">点击右侧「刷新列表」加载日报产物...</option>
         </select>
         <div id="diyi-platforms" style="display:flex;flex-wrap:wrap;gap:10px;margin:8px 0;"></div>
+        <div style="display:flex;align-items:center;gap:14px;margin:8px 0;font-size:12px;color:#666;flex-wrap:wrap;">
+          <label style="cursor:pointer;"><input type="checkbox" id="diyi-autosubmit"> 🤖 自动提交（需平台已验证，安全阀门）</label>
+          <button class="ai-btn ai-btn-secondary" style="padding:4px 10px;font-size:12px;" onclick="verifyCurrentPlatforms(true)">✅ 标记选中平台已验证</button>
+          <button class="ai-btn ai-btn-secondary" style="padding:4px 10px;font-size:12px;" onclick="verifyCurrentPlatforms(false)">↩️ 取消验证</button>
+        </div>
         <div class="ai-btn-row">
           <button class="ai-btn ai-btn-secondary" onclick="loadDiyiArticles()">🔄 刷新列表</button>
           <button class="ai-btn ai-btn-primary" onclick="diyiDistribute()">🚀 分发到选中平台</button>

@@ -130,4 +130,5 @@ contextBridge.exposeInMainWorld('api', {
   diyiListArticles: () => ipcRenderer.invoke('diyi:list-articles'),
   diyiListAccounts: () => ipcRenderer.invoke('diyi:list-accounts'),
   diyiDistribute: (opts) => ipcRenderer.invoke('diyi:distribute', opts),
+  diyiVerifyPlatform: (opts) => ipcRenderer.invoke('diyi:verify-platform', opts),
 })
