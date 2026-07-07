@@ -1,0 +1,36 @@
+# ===== 帝意传媒 exe (D&E Media) .gitignore =====
+# 打包产物与二进制（不进版本库，本地保留即可）
+green-version/
+release2/
+*.exe
+*.dll
+*.pak
+*.bin
+*.dat
+*.sig
+D&E Media Setup 1.0.0.exe
+
+# Electron 运行时数据（cookie / 账号 / 登录态 — 含敏感信息，绝不入库）
+userData/
+**/userData/
+*.log
+logs/
+
+# 依赖
+node_modules/
+npm-debug.log*
+yarn-error.log
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 环境变量 / 凭证（双重保险）
+.env
+*.env
+.env.local
+
+# Electron 打包归档(构建产物，源码在 resources/app/)
+*.asar

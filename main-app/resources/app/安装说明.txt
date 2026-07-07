@@ -1,0 +1,129 @@
+帝意传媒 v1.0.0 — 完整安装包 使用说明
+================================================
+
+一、文件清单（一个都不遗漏！）
+-----------------------------
+
+✅ 核心运行文件（必需）：
+  main.js               — Electron 主进程入口
+  preload.js            — 预加载脚本，向前端暴露 API
+  ai_models.js          — AI 模型配置（支持多模型/多 API）
+  automation-login.js   — 自动化登录模块（支持多平台）
+  index.html            — 主界面（内含所有 CSS + 前端 JS）
+  browser-panel.html     — 浏览器工作台界面
+  icon.ico              — 应用图标
+  assets/logo.png       — Logo 图片
+
+✅ 配置文件（必需）：
+  package.json          — 项目配置 + electron-builder 打包配置
+  package-lock.json    — 依赖版本锁定（确保复现）
+
+✅ 依赖目录（必需）：
+  node_modules/         — 所有 npm 依赖（@electron/remote + electron-store + electron + electron-builder）
+
+✅ 辅助脚本（可选）：
+  启动帝意传媒.bat       — 双击启动（自动检查 Node.js + 安装依赖）
+  打包.bat               — 生成安装程序（release/ 下产生 Setup.exe）
+  绿色版打包.bat         — 生成绿色版 ZIP 包
+  build.bat             — 备用打包脚本
+
+二、依赖完整性验证
+-------------------------
+
+main.js 中所有 require() 引用：
+  ✅ require('electron')          — 内置
+  ✅ require('path')              — Node 内置
+  ✅ require('electron-store')    — 在 node_modules 中
+  ✅ require('https')             — Node 内置
+  ✅ require('./automation-login') — 本地文件 ✅
+  ✅ require('./ai_models.js')   — 本地文件（有 try-catch 兜底）
+
+package.json 中声明的依赖：
+  ✅ @electron/remote ^2.1.3    — 运行时依赖（在 node_modules）
+  ✅ electron-store ^8.1.0      — 运行时依赖（在 node_modules）
+  ✅ electron ^28.0.0           — 打包依赖（在 node_modules）
+  ✅ electron-builder ^24.9.1   — 打包工具（在 node_modules）
+
+👉 验证方法：双击「启动帝意传媒.bat」，能正常启动说明依赖完整。
+
+三、打包方法（任选其一）
+-----------------------------
+
+方法 A：生成安装程序（推荐，分发给用户用）
+  1. 双击「打包.bat」
+  2. 等待打包完成（首次需要 3-5 分钟）
+  3. 完成后在 release/ 目录下找到：
+     「帝意传媒 Setup 1.0.0.exe」← 这就是安装包！
+  4. 将此 .exe 文件发给用户，用户双击即可安装
+
+方法 B：生成绿色版（ZIP，无需安装）
+  1. 双击「绿色版打包.bat」
+  2. 等待复制依赖（node_modules 约 200+ 个包，需要几分钟）
+  3. 完成后在同目录下找到：
+     「帝意传媒-v1.0.0-完整绿色版.zip」← 这就是绿色版！
+  4. 将此 .zip 发给用户，用户解压后双击「启动帝意传媒.bat」即可运行
+
+四、首次运行步骤（用户端）
+---------------------------------
+
+安装版：
+  1. 双击「帝意传媒 Setup 1.0.0.exe」
+  2. 按提示安装（可选择安装目录）
+  3. 安装完成后桌面自动创建「帝意传媒」快捷方式
+  4. 双击快捷方式启动
+
+绿色版：
+  1. 解压「帝意传媒-v1.0.0-完整绿色版.zip」到任意目录
+  2. 双击「启动帝意传媒.bat」
+  3. 首次运行会自动检查 Node.js，如缺失会提示安装
+  4. 依赖检查完成后自动启动应用
+
+五、确保不遗漏任何文件的检查清单
+------------------------------------------
+
+打包前务必确认以下文件都存在：
+
+  [ ] main.js
+  [ ] preload.js
+  [ ] ai_models.js
+  [ ] automation-login.js
+  [ ] index.html
+  [ ] browser-panel.html
+  [ ] icon.ico
+  [ ] assets/logo.png
+  [ ] package.json
+  [ ] package-lock.json
+  [ ] node_modules/@electron/remote （运行时依赖）
+  [ ] node_modules/electron-store （运行时依赖）
+  [ ] node_modules/electron （打包依赖）
+  [ ] node_modules/electron-builder （打包工具）
+
+👉 快捷验证：双击「启动帝意传媒.bat」，能启动说明文件齐全。
+
+六、常见问题
+-----------------
+
+Q1：启动时报「缺少模块」错误？
+A：说明 node_modules 不完整，重新运行 npm install 即可。
+
+Q2：打包时报 PowerShell 执行策略错误？
+A：已修复，使用「打包.bat」会自动绕过执行策略。
+
+Q3：绿色版 ZIP 太大（几百 MB）？
+A：因为包含了完整的 node_modules。这是正常的，确保所有依赖都在。
+
+Q4：用户机器没有 Node.js 能运行吗？
+A：安装版（Setup.exe）自带 Electron 运行时，用户无需安装 Node.js。
+   绿色版需要用户先安装 Node.js（https://nodejs.org），然后运行「启动帝意传媒.bat」。
+
+七、项目信息
+-----------------
+
+  项目名称：帝意传媒（D&E Media）
+  版本：v1.0.0
+  技术栈：Electron 28 + Node.js 22 + electron-builder 24
+  功能：新媒体多平台账号管理 + AI 创作 + 浏览器工作台
+
+================================================
+生成时间：2026-07-05
+================================================

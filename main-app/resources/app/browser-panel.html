@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>浏览器工作台</title>
+  <style>
+    * { margin:0; padding:0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; height:100vh; display:flex; flex-direction:column; overflow:hidden; background:#1a1a2e; }
+    
+    /* 顶部工具栏 */
+    .toolbar { display:flex; align-items:center; gap:4px; padding:8px 12px; background:#16213e; border-bottom:1px solid #0f3460; flex-shrink:0; }
+    .toolbar-btn { width:32px; height:32px; border:none; border-radius:6px; background:transparent; color:#a0a0b0; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:16px; transition:all 0.2s; }
+    .toolbar-btn:hover { background:#0f3460; color:#fff; }
+    .toolbar-btn.active { background:#e94560; color:#fff; }
+    
+    /* 当前账号显示 */
+    .current-account { display:flex; align-items:center; gap:8px; padding:4px 10px; background:#0f3460; border-radius:6px; color:#fff; font-size:12px; margin-right:8px; }
+    .current-account .status-dot { width:8px; height:8px; border-radius:50%; background:#52c41a; }
+    .current-account .status-dot.no-session { background:#ff4d4f; }
+    
+    /* 地址栏 */
+    .url-bar { flex:1; display:flex; align-items:center; margin:0 12px; background:#0f3460; border-radius:20px; padding:0 14px; height:36px; }
+    .url-bar input { flex:1; background:transparent; border:none; outline:none; color:#fff; font-size:13px; }
+    .url-bar input::placeholder { color:#666; }
+    .secure-icon { color:#52c41a; margin-right:8px; font-size:14px; }
+    
+    /* 平台快捷切换 */
+    .platform-tabs { display:flex; gap:4px; padding:0 12px 8px; background:#16213e; border-bottom:1px solid #0f3460; overflow-x:auto; flex-shrink:0; }
+    .platform-tab { padding:6px 14px; border-radius:16px; background:#0f3460; color:#a0a0b0; border:none; cursor:pointer; white-space:nowrap; font-size:12px; transition:all 0.2s; }
+    .platform-tab:hover, .platform-tab.active { background:#e94560; color:#fff; }
+    
+    /* 浏览区域 */
+    .browser-area { flex:1; position:relative; background:#fff; }
+    .browser-frame { width:100%; height:100%; border:none; }
+    
+    /* 加载动画 */
+    .loading-bar { position:absolute; top:0; left:0; height:3px; background:linear-gradient(90deg, #e94560, #ff6b00); width:0%; transition:width 0.3s; z-index:10; }
+    .loading-bar.loading { animation:loading 1.5s ease-in-out infinite; }
+    @keyframes loading { 0%{width:0%;} 50%{width:70%;} 100%{width:100%;} }
+    
+    /* 状态栏 */
+    .status-bar { display:flex; align-items:center; justify-content:space-between; padding:4px 12px; background:#16213e; color:#666; font-size:11px; flex-shrink:0; }
+    .cookie-count { color:#1890ff; }
+    
+    /* 自动化面板 */
+    #auto-panel { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); z-index:9999; justify-content:flex-end; align-items:flex-start; padding:60px 20px 20px; }
+    #auto-panel.show { display:flex; }
+    .auto-panel-inner { background:#16213e; border-radius:12px; padding:16px; width:320px; max-height:80vh; overflow-y:auto; }
+    .auto-panel-inner h3 { color:#fff; font-size:14px; margin-bottom:12px; }
+    .auto-field { width:100%; padding:6px 8px; background:#1a1a2e; border:1px solid #333; border-radius:4px; color:#fff; font-size:12px; margin-bottom:6px; }
+    .auto-btn { width:100%; padding:6px; border:none; border-radius:4px; color:#fff; cursor:pointer; font-size:12px; margin-top:6px; }
+    .auto-result { margin-top:12px; padding:8px; background:#1a1a2e; border-radius:6px; display:none; }
+    .auto-result.show { display:block; }
+    .auto-result pre { color:#52c41a; font-size:11px; word-break:break-all; white-space:pre-wrap; }
+    
+    /* 叠加式标签栏（融媒宝风格） */
+    .browser-tab-bar {
+      display:flex;
+      align-items:center;
+      gap:0;
+      background:#16213e;
+      border-bottom:1px solid #0f3460;
+      padding:0 8px;
+      overflow-x:auto;
+      flex-shrink:0;
+      min-height:36px;
+      -webkit-user-select:none;
+      user-select:none;
+    }
+    .browser-tab-bar::-webkit-scrollbar { height:3px; }
+    .browser-tab-bar::-webkit-scrollbar-thumb { background:#333; border-radius:3px; }
+    
+    .browser-tab {
+      display:flex;
+      align-items:center;
+      gap:5px;
+      padding:6px 10px;
+      background:#0f3460;
+      color:#a0a0b0;
+      cursor:pointer;
+      white-space:nowrap;
+      max-width:200px;
+      flex-shrink:0;
+      border-radius:6px 6px 0 0;
+      margin:2px 1px 0 1px;
+      transition:all 0.15s;
+      font-size:12px;
+      position:relative;
+    }
+    .browser-tab:hover { background:#1a2744; color:#fff; }
+    .browser-tab.active {
+      background:#e94560;
+      color:#fff;
+      font-weight:500;
+      box-shadow: 0 -2px 8px rgba(233,69,96,0.3);
+    }
+    .tab-favicon {
+      font-size:13px;
+      flex-shrink:0;
+    }
+    .tab-title {
+      overflow:hidden;
+      text-overflow:ellipsis;
+      max-width:140px;
+      font-size:11px;
+    }
+    .tab-close {
+      font-size:9px;
+      color:#666;
+      padding:2px 4px;
+      border-radius:50%;
+      margin-left:2px;
+      flex-shrink:0;
+      line-height:1;
+      opacity:0;
+      transition:all 0.15s;
+    }
+    .browser-tab:hover .tab-close,
+    .browser-tab.active .tab-close { opacity:1; }
+    .tab-close:hover {
+      background:rgba(255,255,255,0.2);
+      color:#fff !important;
+    }
+    
+    /* Cookie 模板面板 */
+    #cookie-panel { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); z-index:9999; justify-content:center; align-items:center; }
+    #cookie-panel.show { display:flex; }
+    .cookie-panel-inner { background:#16213e; border-radius:12px; padding:20px; width:500px; max-height:80vh; overflow-y:auto; }
+    .cookie-item { display:flex; justify-content:space-between; align-items:center; padding:8px; background:#0f3460; border-radius:6px; margin-bottom:6px; }
+    .cookie-item .name { color:#fff; font-size:12px; flex:1; }
+    .cookie-item .actions { display:flex; gap:4px; }
+    .cookie-item button { padding:4px 8px; border:none; border-radius:4px; cursor:pointer; font-size:11px; }
+  </style>
+</head>
+<body>
+  <!-- 苹果风格自定义标题栏（绿黄红圆点） -->
+  <div id="custom-titlebar" style="display:flex; align-items:center; height:32px; background:#16213e; -webkit-app-region:drag; user-select:none; padding:0 12px; border-bottom:1px solid #0f3460; flex-shrink:0;">
+    <!-- 苹果风格圆点按钮：绿(最小化) 黄(最大化) 红(关闭) -->
+    <div style="display:flex; gap:8px; -webkit-app-region:no-drag;" id="mac-dots">
+      <div class="mac-dot dot-minimize" onclick="window.api.minimize()" title="最小化" style="width:12px;height:12px;border-radius:50%;background:#28ca42;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;font-size:7px;color:transparent;line-height:1;">—</div>
+      <div class="mac-dot dot-maximize" onclick="window.api.maximize()" title="最大化/还原" style="width:12px;height:12px;border-radius:50%;background:#ffbd2e;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;font-size:7px;color:transparent;line-height:1;">◻</div>
+      <div class="mac-dot dot-close" onclick="window.api.closeWindow()" title="关闭窗口" style="width:12px;height:12px;border-radius:50%;background:#ff5f57;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;font-size:7px;color:transparent;line-height:1;">✕</div>
+    </div>
+    <div style="flex:1;text-align:center;color:#666;font-size:12px;letter-spacing:1px;font-weight:500;">🌐 浏览器工作台</div>
+    <div style="width:72px;"></div>
+  </div>
+
+  <style>
+    .mac-dot { position: relative; }
+    .mac-dot:hover { filter: brightness(1.2); transform: scale(1.2); }
+    .mac-dot:hover { color: #000 !important; }
+    #mac-dots:hover .mac-dot { filter: brightness(1.1); }
+    #mac-dots .mac-dot { transition: all 0.2s ease; }
+  </style>
+
+  <!-- 叠加式标签栏（像融媒宝/Chrome 那样） -->
+  <div id="browser-tab-bar" class="browser-tab-bar" style="display:none;">
+    <!-- 标签页通过 JS 动态生成 -->
+  </div>
+
+  <!-- 工具栏 -->
+  <div class="toolbar">
+    <button class="toolbar-btn" onclick="goBack()" title="后退">◀</button>
+    <button class="toolbar-btn" onclick="goForward()" title="前进">▶</button>
+    <button class="toolbar-btn" onclick="refreshPage()" title="刷新">↻</button>
+    <button class="toolbar-btn" onclick="goHome()" title="主页">🏠</button>
+    
+    <!-- 当前账号/Session 显示 -->
+    <div class="current-account" id="current-account">
+      <div class="status-dot no-session" id="session-dot"></div>
+      <span id="session-label">未选择账号</span>
+    </div>
+    
+    <div class="url-bar">
+      <span class="secure-icon">🔒</span>
+      <input type="text" id="url-input" placeholder="输入网址或搜索..." onkeypress="handleUrlKeypress(event)" />
+    </div>
+    
+    <!-- 功能按钮组 -->
+    <button class="toolbar-btn" onclick="showAutoPanel()" title="自动化操作" style="background:#e94560;color:white;">🤖</button>
+    <button class="toolbar-btn" onclick="showCookiePanel()" title="Cookie 管理">🍪</button>
+    <button class="toolbar-btn" onclick="addCurrentAccount()" title="一键添加账号（提取当前登录Cookie保存到账号管理）" style="background:#52c41a;color:white;font-weight:600;font-size:11px;padding:0 8px;width:auto;border-radius:6px;">➕ 添加账号</button>
+    <button class="toolbar-btn" onclick="takeSnapshot()" title="页面快照">📸</button>
+    <button class="toolbar-btn" onclick="toggleDevTools()" title="开发者工具">⚙️</button>
+  </div>
+
+  <!-- 平台快捷标签 -->
+  <div class="platform-tabs" id="platform-tabs"></div>
+
+  <!-- 浏览区域 -->
+  <div class="browser-area">
+    <div class="loading-bar" id="loading-bar"></div>
+    <webview id="browser-webview" class="browser-frame" src="about:blank" 
+             allowpopups 
+             webpreferences="contextIsolation=yes,nodeIntegration=no"
+             style="width:100%;height:100%;"></webview>
+  </div>
+
+  <!-- 状态栏 -->
+  <div class="status-bar">
+    <span id="status-text">就绪 - 请先选择账号</span>
+    <span id="cookie-indicator">🍪 Cookie: 0 个</span>
+  </div>
+
+  <!-- 自动化操作面板 -->
+  <div id="auto-panel">
+    <div class="auto-panel-inner">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <h3>🤖 自动化操作</h3>
+        <button onclick="hideAutoPanel()" style="background:none; border:none; color:#666; font-size:18px; cursor:pointer;">✕</button>
+      </div>
+      
+      <!-- 点击元素 -->
+      <div style="background:#0f3460; border-radius:8px; padding:10px; margin-bottom:8px;">
+        <div style="color:#fff; font-size:13px; margin-bottom:6px;">🖱️ 点击元素</div>
+        <input class="auto-field" type="text" id="click-selector" placeholder="CSS选择器，如 .login-btn" />
+        <button class="auto-btn" style="background:#e94560;" onclick="autoClick()">执行点击</button>
+      </div>
+      
+      <!-- 填写表单 -->
+      <div style="background:#0f3460; border-radius:8px; padding:10px; margin-bottom:8px;">
+        <div style="color:#fff; font-size:13px; margin-bottom:6px;">📝 填写表单</div>
+        <input class="auto-field" type="text" id="fill-selector" placeholder="输入框选择器" />
+        <input class="auto-field" type="text" id="fill-value" placeholder="要填入的内容" />
+        <button class="auto-btn" style="background:#52c41a;" onclick="autoFill()">填写内容</button>
+      </div>
+      
+      <!-- 提取数据 -->
+      <div style="background:#0f3460; border-radius:8px; padding:10px; margin-bottom:8px;">
+        <div style="color:#fff; font-size:13px; margin-bottom:6px;">📋 提取数据</div>
+        <input class="auto-field" type="text" id="extract-selector" placeholder="要提取的元素选择器" />
+        <select class="auto-field" id="extract-type">
+          <option value="text">提取文本</option>
+          <option value="html">提取HTML</option>
+          <option value="attr">提取属性</option>
+        </select>
+        <button class="auto-btn" style="background:#1890ff;" onclick="autoExtract()">提取数据</button>
+      </div>
+      
+      <!-- 执行自定义JS -->
+      <div style="background:#0f3460; border-radius:8px; padding:10px; margin-bottom:8px;">
+        <div style="color:#fff; font-size:13px; margin-bottom:6px;">⚡ 自定义 JS</div>
+        <textarea class="auto-field" id="custom-js" rows="3" placeholder="// 输入要执行的 JavaScript 代码"></textarea>
+        <button class="auto-btn" style="background:#9c27b0;" onclick="execCustomJS()">执行代码</button>
+      </div>
+
+      <!-- 结果输出 -->
+      <div class="auto-result" id="auto-result">
+        <pre></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cookie 管理面板 -->
+  <div id="cookie-panel">
+    <div class="cookie-panel-inner">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h3 style="color:#fff; font-size:16px;">🍪 Cookie 管理</h3>
+        <button onclick="hideCookiePanel()" style="background:none; border:none; color:#666; font-size:18px; cursor:pointer;">✕</button>
+      </div>
+      
+      <div style="display:flex; gap:8px; margin-bottom:12px;">
+        <button class="auto-btn" style="background:#52c41a;" onclick="refreshCookies()">🔄 刷新列表</button>
+        <button class="auto-btn" style="background:#1890ff;" onclick="exportCookies()">📤 导出</button>
+        <button class="auto-btn" style="background:#e94560;" onclick="clearCookies()">🗑️ 清除</button>
+      </div>
+      
+      <div id="cookie-list" style="max-height:400px; overflow-y:auto;">
+        <!-- Cookie 列表动态生成 -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { ipcRenderer } = require('electron')
+    
+    // 窗口控制 API（用于苹果风格圆点按钮）
+    window.api = {
+      minimize: () => ipcRenderer.invoke('window:minimize'),
+      maximize: () => ipcRenderer.invoke('browser-window:maximize'),
+      closeWindow: () => ipcRenderer.invoke('browser-window:close'),
+    }
+    
+    const webview = document.getElementById('browser-webview')
+    const urlInput = document.getElementById('url-input')
+    const loadingBar = document.getElementById('loading-bar')
+    const statusText = document.getElementById('status-text')
+    const cookieIndicator = document.getElementById('cookie-indicator')
+    const sessionLabel = document.getElementById('session-label')
+    const sessionDot = document.getElementById('session-dot')
+    const platformTabs = document.getElementById('platform-tabs')
+
+    // 当前 session 信息
+    let currentSessionInfo = { partition: null, accountId: null, platformKey: null }
+
+    // 平台列表（含快手）
+    const platforms = [
+      { key: 'douyin', name: '🎵 抖音', url: 'https://creator.douyin.com/' },
+      { key: 'kuaishou', name: '🎬 快手', url: 'https://creator.kuaishou.com/' },
+      { key: 'xiaohongshu', name: '📕 小红书', url: 'https://creator.xiaohongshu.com/' },
+      { key: 'wechat', name: '💬 微信', url: 'https://mp.weixin.qq.com/' },
+      { key: 'bilibili', name: '📺 B站', url: 'https://member.bilibili.com/platform/home' },
+      { key: 'weibo', name: '📢 微博', url: 'https://weibo.com/' },
+      { key: 'zhihu', name: '🤔 知乎', url: 'https://www.zhihu.com/' },
+      { key: 'toutiao', name: '📰 头条', url: 'https://mp.toutiao.com/' },
+      { key: 'baidu', name: '🔍 百家号', url: 'https://baijiahao.baidu.com/' },
+    ]
+
+    // 常用快捷网站（不依赖登录）
+    const quickSites = [
+      { name: '🔍 百度', url: 'https://www.baidu.com' },
+      { name: '🌐 必应', url: 'https://cn.bing.com' },
+      { name: '📰 36氪', url: 'https://36kr.com' },
+      { name: '💼 腾讯新闻', url: 'https://news.qq.com' },
+    ]
+
+    // ==================== 初始化 ====================
+    function init() {
+      initPlatformTabs()
+      initIpcListeners()
+      
+      // 恢复之前保存的标签页（核心体验：打开就看到所有标签！）
+      restoreTabsFromStorage().then(() => {
+        // 如果没有任何标签，默认打开百度
+        if (browserTabs.length === 0) {
+          setTimeout(() => {
+            navigateTo('https://www.baidu.com')
+            statusText.textContent = '✅ 浏览器已就绪 - 可输入任意网址访问'
+            sessionLabel.textContent = '自由浏览模式'
+          }, 300)
+        } else {
+          statusText.textContent = `✅ 已恢复 ${browserTabs.length} 个标签`
+        }
+      })
+    }
+
+    function initPlatformTabs() {
+      platformTabs.innerHTML = ''
+      
+      // 创作者平台标签（橙色高亮）
+      for (const p of platforms) {
+        const tab = document.createElement('button')
+        tab.className = 'platform-tab'
+        tab.textContent = p.name
+        tab.style.background = 'linear-gradient(135deg, #e94560, #ff6b00)'
+        tab.style.color = '#fff'
+        tab.style.fontWeight = '500'
+        tab.onclick = () => { navigateTo(p.url); setActiveTab(tab) }
+        tab.dataset.platform = p.key
+        platformTabs.appendChild(tab)
+      }
+      
+      // 分隔线
+      const sep = document.createElement('span')
+      sep.textContent = '|'
+      sep.style.color = '#555'
+      sep.style.padding = '0 8px'
+      platformTabs.appendChild(sep)
+      
+      // 快捷网站标签
+      for (const s of quickSites) {
+        const tab = document.createElement('button')
+        tab.className = 'platform-tab'
+        tab.textContent = s.name
+        tab.onclick = () => { navigateTo(s.url); setActiveTab(tab) }
+        platformTabs.appendChild(tab)
+      }
+    }
+
+    function setActiveTab(activeTab) {
+      document.querySelectorAll('.platform-tab').forEach(t => t.classList.remove('active'))
+      activeTab.classList.add('active')
+    }
+
+    function initIpcListeners() {
+      // 接收主进程发来的 session 信息
+      ipcRenderer.on('browser:session-info', (_, info) => {
+        currentSessionInfo = info
+        sessionLabel.textContent = info.sessionLabel || '默认 Session'
+        sessionDot.classList.remove('no-session')
+        statusText.textContent = `✅ 已加载 Session: ${info.sessionLabel}`
+        console.log('[工作台] Session 信息:', info)
+        
+        // 自动导航到对应平台
+        if (info.platformKey) {
+          const platform = platforms.find(p => p.key === info.platformKey)
+          if (platform) {
+            navigateTo(platform.url)
+            // 高亮对应标签
+            const tabs = document.querySelectorAll('.platform-tab')
+            tabs.forEach(t => { if (t.dataset.platform === info.platformKey) t.classList.add('active') })
+          }
+        }
+      })
+
+      // 接收切换 Session 请求
+      ipcRenderer.on('browser:switch-session', (_, info) => {
+        currentSessionInfo = info
+        sessionLabel.textContent = info.sessionLabel || '默认 Session'
+        sessionDot.classList.remove('no-session')
+        statusText.textContent = `✅ 已切换到: ${info.sessionLabel}`
+        
+        if (info.platformKey) {
+          const platform = platforms.find(p => p.key === info.platformKey)
+          if (platform) navigateTo(platform.url)
+        }
+      })
+    }
+
+    // ==================== 导航控制 ====================
+    function navigateTo(url) {
+      if (!url.startsWith('http')) {
+        url = 'https://' + url
+      }
+      urlInput.value = url
+      webview.loadURL(url)
+      showLoading(true)
+      statusText.textContent = '加载中...'
+    }
+
+    function handleUrlKeypress(e) {
+      if (e.key === 'Enter') {
+        let url = urlInput.value.trim()
+        if (url && !url.startsWith('http')) {
+          if (url.includes('.') && !url.includes(' ')) {
+            url = 'https://' + url
+          } else {
+            url = 'https://www.google.com/search?q=' + encodeURIComponent(url)
+          }
+        }
+        navigateTo(url)
+      }
+    }
+
+    function goBack() { webview.goBack() }
+    function goForward() { webview.goForward() }
+    function refreshPage() { webview.reload(); showLoading(true) }
+    function goHome() { 
+      // 如果有账号Session，回到对应平台
+      if (currentSessionInfo.platformKey) {
+        const platform = platforms.find(p => p.key === currentSessionInfo.platformKey)
+        if (platform) { navigateTo(platform.url); return }
+      }
+      // 自由浏览模式：回到百度
+      navigateTo('https://www.baidu.com')
+    }
+    function toggleDevTools() { webview.toggleDevTools() }
+
+    // ==================== 加载状态 ====================
+    function showLoading(show) {
+      if (show) {
+        loadingBar.classList.add('loading')
+      } else {
+        loadingBar.classList.remove('loading')
+        setTimeout(() => { loadingBar.style.width = '0%' }, 300)
+      }
+    }
+
+    // ==================== Webview 事件 ====================
+    webview.addEventListener('did-start-loading', () => {
+      showLoading(true)
+    })
+
+    webview.addEventListener('did-stop-loading', () => {
+      showLoading(false)
+      const currentUrl = webview.getURL()
+      urlInput.value = currentUrl
+      statusText.textContent = '✅ 页面加载完成'
+      
+      // 自动更新当前标签标题（叠加式标签体验）
+      updateActiveTabTitle(webview.getTitle(), currentUrl)
+      
+      // 更新当前账号显示
+      if (activeTabId) {
+        const tab = browserTabs.find(t => t.id === activeTabId)
+        if (tab) updateCurrentAccountDisplay(tab)
+      }
+      
+      // 自动更新 Cookie 数量
+      updateCookieCount()
+    })
+
+    webview.addEventListener('new-window', (e) => {
+      // 在新 webview 中打开弹出窗口
+      webview.loadURL(e.url)
+    })
+
+    // ==================== Cookie 操作 ====================
+    async function updateCookieCount() {
+      try {
+        const cookies = await webview.executeJavaScript(`
+          document.cookie.split(';').filter(c => c.trim().length > 0).length
+        `)
+        cookieIndicator.textContent = `🍪 Cookie: ${cookies} 个`
+      } catch (e) {
+        cookieIndicator.textContent = `🍪 Cookie: 无法读取`
+      }
+    }
+
+    async function showCookiePanel() {
+      const panel = document.getElementById('cookie-panel')
+      panel.classList.add('show')
+      await refreshCookies()
+    }
+
+    function hideCookiePanel() {
+      document.getElementById('cookie-panel').classList.remove('show')
+    }
+
+    async function refreshCookies() {
+      try {
+        const cookies = await webview.executeJavaScript(`
+          document.cookie.split(';').map(c => {
+            const [name, value] = c.trim().split('=')
+            return { name, value: value || '' }
+          }).filter(c => c.name)
+        `)
+        
+        const list = document.getElementById('cookie-list')
+        list.innerHTML = ''
+        
+        if (cookies.length === 0) {
+          list.innerHTML = '<div style="color:#666; text-align:center; padding:20px;">暂无 Cookie</div>'
+          return
+        }
+
+        for (const cookie of cookies.slice(0, 50)) {  // 最多显示50个
+          const item = document.createElement('div')
+          item.className = 'cookie-item'
+          item.innerHTML = `
+            <span class="name">${cookie.name.substring(0, 30)} = ${cookie.value.substring(0, 20)}...</span>
+            <div class="actions">
+              <button style="background:#1890ff; color:#fff;" onclick="copyCookie('${cookie.name}', '${cookie.value}')">复制</button>
+            </div>
+          `
+          list.appendChild(item)
+        }
+
+        statusText.textContent = `🍪 已加载 ${cookies.length} 个 Cookie`
+      } catch (e) {
+        statusText.textContent = '❌ 读取 Cookie 失败: ' + e.message
+      }
+    }
+
+    function copyCookie(name, value) {
+      navigator.clipboard.writeText(`${name}=${value}`).then(() => {
+        statusText.textContent = '✅ 已复制: ' + name
+      })
+    }
+
+    async function exportCookies() {
+      try {
+        const cookies = await webview.executeJavaScript(`
+          document.cookie
+        `)
+        
+        const result = await ipcRenderer.invoke('browser:export-cookies', {
+          url: webview.getURL(),
+          cookieString: cookies,
+          accountId: currentSessionInfo.accountId,
+          platformKey: currentSessionInfo.platformKey
+        })
+        
+        if (result.success) {
+          statusText.textContent = '✅ Cookie 已导出: ' + result.path
+        } else {
+          statusText.textContent = '❌ 导出失败: ' + result.message
+        }
+      } catch (e) {
+        statusText.textContent = '❌ 导出失败: ' + e.message
+      }
+    }
+
+    async function clearCookies() {
+      if (!confirm('确定要清除当前页面的所有 Cookie 吗？')) return
+      
+      try {
+        await webview.executeJavaScript(`
+          document.cookie.split(';').forEach(c => {
+            const name = c.split('=')[0].trim()
+            document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
+          })
+        `)
+        statusText.textContent = '✅ Cookie 已清除'
+        await refreshCookies()
+      } catch (e) {
+        statusText.textContent = '❌ 清除失败: ' + e.message
+      }
+    }
+
+    // ==================== 标签页管理（叠加式标签栏，像融媒宝/Chrome） ====================
+    
+    let browserTabs = []           // 所有打开的标签页 [{id, title, url, favicon, accountId, platformName, domain}]
+    let activeTabId = null         // 当前激活的标签 ID
+    
+    // 已知平台映射（用于显示图标和名称，但不限制添加）
+    const knownPlatforms = {
+      'xiaohongshu.com': { key: 'xiaohongshu', name: '小红书', icon: '📕' },
+      'douyin.com': { key: 'douyin', name: '抖音', icon: '🎵' },
+      'creator.kuaishou.com': { key: 'kuaishou', name: '快手', icon: '🎬' },
+      'kuaishou.com': { key: 'kuaishou', name: '快手', icon: '🎬' },
+      'mp.weixin.qq.com': { key: 'wechat', name: '微信', icon: '💬' },
+      'weixin.qq.com': { key: 'wechat', name: '微信', icon: '💬' },
+      'bilibili.com': { key: 'bilibili', name: 'B站', icon: '📺' },
+      'weibo.com': { key: 'weibo', name: '微博', icon: '📢' },
+      'weibo.cn': { key: 'weibo', name: '微博', icon: '📢' },
+      'zhihu.com': { key: 'zhihu', name: '知乎', icon: '🤔' },
+      'mp.toutiao.com': { key: 'toutiao', name: '头条', icon: '📰' },
+      'baijiahao.baidu.com': { key: 'baidu', name: '百家号', icon: '🔍' },
+      'cp.kuaishou.com': { key: 'kuaishou_cp', name: '快手创作者', icon: '🎬' },
+      'creator.douyin.com': { key: 'douyin_cp', name: '抖音创作者', icon: '🎵' },
+      'creator.xiaohongshu.com': { key: 'xhs_cp', name: '小红书创作者', icon: '📕' },
+      'youtube.com': { key: 'youtube', name: 'YouTube', icon: '▶️' },
+      'twitter.com': { key: 'twitter', name: 'Twitter/X', icon: '🐦' },
+      'x.com': { key: 'twitter', name: 'X', icon: '🐦' },
+      'facebook.com': { key: 'facebook', name: 'Facebook', icon: '👥' },
+      'instagram.com': { key: 'instagram', name: 'Instagram', icon: '📷' },
+      'tiktok.com': { key: 'tiktok', name: 'TikTok', icon: '🎵' },
+      'linkedin.com': { key: 'linkedin', name: 'LinkedIn', icon: '💼' },
+      'pinterest.com': { key: 'pinterest', name: 'Pinterest', icon: '📌' },
+      't.me': { key: 'telegram', name: 'Telegram', icon: '✈️' },
+      'telegram.org': { key: 'telegram', name: 'Telegram', icon: '✈️' },
+      'discord.com': { key: 'discord', name: 'Discord', icon: '💬' },
+      'twitch.tv': { key: 'twitch', name: 'Twitch', icon: '🎮' },
+      'github.com': { key: 'github', name: 'GitHub', icon: '🐙' },
+      'medium.com': { key: 'medium', name: 'Medium', icon: '📝' },
+      'quora.com': { key: 'quora', name: 'Quora', icon: '❓' },
+      'reddit.com': { key: 'reddit', name: 'Reddit', icon: '🤖' },
+    }
+
+    // 从 URL 智能识别平台信息（不限制，只是用于显示友好名称和图标）
+    function detectPlatformInfo(url) {
+      for (const [domain, info] of Object.entries(knownPlatforms)) {
+        if (url.includes(domain)) {
+          return info
+        }
+      }
+      // 未知域名 → 用域名本身作为名称
+      try {
+        const hostname = new URL(url).hostname
+        // 美化域名显示
+        const prettyName = hostname.replace('www.', '').replace('.com', '').replace('.cn', '').substring(0, 15)
+        return { key: 'custom_' + hostname, name: prettyName || '未知站点', icon: '🌐' }
+      } catch(e) {
+        return { key: 'custom', name: '未知站点', icon: '🌐' }
+      }
+    }
+
+    // 创建新标签页
+    async function createTab(url, title = '新标签', options = {}) {
+      const tabId = 'tab_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5)
+      const platInfo = detectPlatformInfo(url)
+      
+      const tab = {
+        id: tabId,
+        url: url,
+        title: title,
+        favicon: platInfo.icon,
+        platformKey: platInfo.key,
+        platformName: platInfo.name,
+        domain: '',
+        accountId: options.accountId || null,
+        isAccountTab: !!options.accountId,
+        createdAt: new Date().toISOString(),
+      }
+      
+      try {
+        tab.domain = new URL(url).hostname
+      } catch(e) {}
+      
+      // 添加到标签列表
+      browserTabs.push(tab)
+      
+      // 切换到这个标签
+      switchToTab(tabId)
+      
+      // 刷新标签栏 UI
+      renderTabBar()
+      
+      // 导航
+      navigateTo(url)
+      
+      // 保存标签数据到持久化存储
+      saveTabsToStorage()
+      
+      console.log('[标签] 创建新标签:', tab.title, tab.url)
+      return tabId
+    }
+
+    // 切换标签
+    function switchToTab(tabId) {
+      activeTabId = tabId
+      const tab = browserTabs.find(t => t.id === tabId)
+      if (tab) {
+        navigateTo(tab.url)
+        updateCurrentAccountDisplay(tab)
+      }
+      renderTabBar()  // 高亮当前标签
+    }
+
+    // 关闭标签
+    function closeTab(tabId, event) {
+      if (event) event.stopPropagation()
+      
+      const idx = browserTabs.findIndex(t => t.id === tabId)
+      if (idx === -1) return
+      
+      // 移除标签
+      browserTabs.splice(idx, 1)
+      
+      // 如果关闭的是当前激活的标签，切换到相邻标签
+      if (activeTabId === tabId) {
+        if (browserTabs.length > 0) {
+          const newIdx = Math.min(idx, browserTabs.length - 1)
+          switchToTab(browserTabs[newIdx].id)
+        } else {
+          // 没有标签了，显示空白页或默认页
+          activeTabId = null
+          navigateTo('about:blank')
+          sessionLabel.textContent = '无标签'
+          sessionDot.classList.add('no-session')
+        }
+      }
+      
+      renderTabBar()
+      saveTabsToStorage()
+    }
+
+    // 渲染标签栏（叠加式，像 Chrome/融媒宝）
+    function renderTabBar() {
+      const container = document.getElementById('browser-tab-bar')
+      if (!container) return
+      
+      container.innerHTML = ''
+      
+      for (const tab of browserTabs) {
+        const el = document.createElement('div')
+        const isActive = (tab.id === activeTabId)
+        
+        el.className = 'browser-tab' + (isActive ? ' active' : '')
+        el.innerHTML = `
+          <span class="tab-favicon">${tab.favicon}</span>
+          <span class="tab-title" title="${tab.title}">${tab.title.substring(0, 20)}${tab.title.length > 20 ? '...' : ''}</span>
+          <span class="tab-close" onclick="closeTab('${tab.id}', event)">✕</span>
+        `
+        el.onclick = () => switchToTab(tab.id)
+        container.appendChild(el)
+      }
+      
+      // 显示/隐藏标签栏
+      container.style.display = browserTabs.length > 0 ? 'flex' : 'none'
+    }
+
+    // 更新当前标签的标题（页面加载完成后调用）
+    function updateActiveTabTitle(title, url) {
+      if (!activeTabId) return
+      const tab = browserTabs.find(t => t.id === activeTabId)
+      if (tab) {
+        tab.title = title || tab.title
+        if (url) tab.url = url
+        // 如果标题是空的，尝试从URL提取
+        if (!tab.title || tab.title === '' || tab.title === 'about:blank') {
+          try { tab.title = new URL(url || tab.url).hostname } catch(e) {}
+        }
+        renderTabBar()
+        saveTabsToStorage()
+      }
+    }
+
+    // 更新当前账号显示区域
+    function updateCurrentAccountDisplay(tab) {
+      if (tab && tab.isAccountTab) {
+        sessionLabel.textContent = `${tab.platformName} (${tab.accountId?.substr(-6) || ''})`
+        sessionDot.classList.remove('no-session')
+      } else if (tab) {
+        sessionLabel.textContent = tab.platformName || tab.domain || '浏览中'
+        sessionDot.classList.remove('no-session')
+      } else {
+        sessionLabel.textContent = '未选择账号'
+        sessionDot.classList.add('no-session')
+      }
+    }
+
+    // 保存标签数据到持久化存储（通过主进程存到 electron-store）
+    async function saveTabsToStorage() {
+      try {
+        await ipcRenderer.invoke('browser:save-tabs', {
+          tabs: browserTabs.map(({ id, url, title, favicon, platformKey, platformName, domain, accountId, isAccountTab, createdAt }) => 
+            ({ id, url, title, favicon, platformKey, platformName, domain, accountId, isAccountTab, createdAt })
+          ),
+          activeTabId
+        })
+      } catch(e) {
+        console.error('[标签] 保存失败:', e)
+      }
+    }
+
+    // 从持久化存储恢复标签
+    async function restoreTabsFromStorage() {
+      try {
+        const data = await ipcRenderer.invoke('browser:load-tabs')
+        if (data && data.tabs && data.tabs.length > 0) {
+          browserTabs = data.tabs
+          activeTabId = data.activeTabId || (data.tabs[0] ? data.tabs[0].id : null)
+          
+          renderTabBar()
+          
+          // 恢复当前标签的页面
+          if (activeTabId) {
+            const tab = browserTabs.find(t => t.id === activeTabId)
+            if (tab) {
+              navigateTo(tab.url)
+              updateCurrentAccountDisplay(tab)
+            }
+          }
+          
+          console.log(`[标签] 恢复了 ${browserTabs.length} 个标签`)
+          statusText.textContent = `✅ 已恢复 ${browserTabs.length} 个标签`
+        }
+      } catch(e) {
+        console.error('[标签] 恢复失败:', e)
+      }
+    }
+
+    // ==================== 一键添加账号（不限平台版）====================
+    async function addCurrentAccount() {
+      try {
+        // 1. 获取当前页面信息
+        const pageInfo = await webview.executeJavaScript(`
+          ({
+            url: location.href,
+            title: document.title,
+            domain: location.hostname,
+            cookies: document.cookie
+          })
+        `)
+        
+        const url = pageInfo.url
+        if (!url || url === 'about:blank' || url.startsWith('chrome://')) {
+          alert('⚠️ 请先导航到一个网页再添加账号！')
+          return
+        }
+        
+        console.log('[一键添加账号] 当前 URL:', url)
+        
+        // 2. 智能识别平台（仅用于友好显示，不限制！）
+        const platInfo = detectPlatformInfo(url)
+        
+        statusText.textContent = `🔍 正在保存 ${platInfo.name} 的登录信息...`
+        
+        // 3. 生成唯一账号ID
+        const accountId = `${platInfo.key}_${Date.now()}`
+        
+        // 4. 通过主进程保存（提取完整 session cookies + 保存账号记录）
+        const result = await ipcRenderer.invoke('browser:save-account-from-panel', {
+          accountId: accountId,
+          platformKey: platInfo.key,
+          platformName: platInfo.name,
+          url: url,
+          title: pageInfo.title,
+          domain: pageInfo.domain,
+          cookies: pageInfo.cookies,
+          timestamp: new Date().toISOString()
+        })
+        
+        if (result.success) {
+          // 5. 自动创建一个该账号的标签页（叠加式体验！）
+          createTab(url, `${platInfo.icon} ${pageInfo.title || platInfo.name}`, { accountId })
+          
+          statusText.textContent = `✅ ${platInfo.name} 账号已添加！`
+          alert(`✅ 一键添加成功！\n\n📍 平台: ${platInfo.name}\n🆔 账号ID: ${accountId}\n🍪 Cookie数: ${result.cookieCount || '未知'}\n👤 用户名: ${result.userName || '自动获取'}\n\n✨ 已自动在顶部创建标签，可随时切回此页面！`)
+          
+          // 通知主窗口刷新账号列表
+          ipcRenderer.send('accounts-updated', {})
+        } else {
+          statusText.textContent = '❌ 添加失败: ' + result.message
+          alert('❌ 添加失败: ' + result.message + '\n\n可能原因:\n1. 当前页面未完成登录\n2. 网络连接问题')
+        }
+      } catch (e) {
+        console.error('[一键添加账号] 失败:', e)
+        statusText.textContent = '❌ 出错: ' + e.message
+        
+        // 即使出错也允许创建标签（纯书签模式）
+        if (confirm(`添加过程出错: ${e.message}\n\n是否仍要将当前页面保存为快捷标签？（不会保存Cookie）`)) {
+          try {
+            const pageInfo = await webview.executeJavaScript(`({ url: location.href, title: document.title })`)
+            const platInfo = detectPlatformInfo(pageInfo.url)
+            createTab(pageInfo.url, `${platInfo.icon} ${pageInfo.title || platInfo.name}`, {})
+          } catch(e2) {
+            alert('创建标签也失败了: ' + e2.message)
+          }
+        }
+      }
+    }
+
+    // ==================== 保存为模板（保留兼容）====================
+    async function saveAsTemplate() {
+      try {
+        const pageInfo = await webview.executeJavaScript(`
+          ({
+            url: location.href,
+            title: document.title,
+            domain: location.hostname,
+            cookies: document.cookie
+          })
+        `)
+        
+        const result = await ipcRenderer.invoke('browser:save-template', {
+          ...pageInfo,
+          accountId: currentSessionInfo.accountId,
+          platformKey: currentSessionInfo.platformKey,
+          timestamp: new Date().toISOString()
+        })
+        
+        if (result.success) {
+          statusText.textContent = '✅ 已保存为模板: ' + result.name
+          alert('✅ 页面已保存为 Cookie 模板！\n名称: ' + result.name)
+        } else {
+          statusText.textContent = '❌ 保存失败: ' + result.message
+        }
+      } catch (e) {
+        statusText.textContent = '❌ 保存失败: ' + e.message
+      }
+    }
+
+    // ==================== 页面快照 ====================
+    async function takeSnapshot() {
+      try {
+        const snapshot = await webview.executeJavaScript(`
+          ({
+            url: location.href,
+            title: document.title,
+            timestamp: new Date().toISOString(),
+            bodyText: document.body.innerText.substring(0, 2000),
+            html: document.documentElement.outerHTML.substring(0, 5000)
+          })
+        `)
+        
+        const result = await ipcRenderer.invoke('browser:screenshot', snapshot)
+        statusText.textContent = result.success ? '✅ 快照已保存' : '❌ 保存失败'
+      } catch (e) {
+        statusText.textContent = '❌ 快照失败: ' + e.message
+      }
+    }
+
+    // ==================== 自动化操作 ====================
+    function showAutoPanel() {
+      document.getElementById('auto-panel').classList.add('show')
+    }
+
+    function hideAutoPanel() {
+      document.getElementById('auto-panel').classList.remove('show')
+    }
+
+    function showAutoResult(text) {
+      const div = document.getElementById('auto-result')
+      div.classList.add('show')
+      div.querySelector('pre').textContent = text
+    }
+
+    async function autoClick() {
+      const selector = document.getElementById('click-selector').value.trim()
+      if (!selector) return showAutoResult('❌ 请输入选择器')
+      
+      try {
+        const result = await webview.executeJavaScript(`
+          (function() {
+            const el = document.querySelector('${selector.replace(/'/g, "\\'")}')
+            if (el) { el.click(); return '✅ 已点击: ${selector}' }
+            return '❌ 未找到元素'
+          })()
+        `)
+        showAutoResult(result)
+      } catch (e) {
+        showAutoResult('❌ 错误: ' + e.message)
+      }
+    }
+
+    async function autoFill() {
+      const selector = document.getElementById('fill-selector').value.trim()
+      const value = document.getElementById('fill-value').value.trim()
+      if (!selector || !value) return showAutoResult('❌ 请输入完整参数')
+      
+      try {
+        const result = await webview.executeJavaScript(`
+          (function() {
+            const el = document.querySelector('${selector.replace(/'/g, "\\'")}')
+            if (el) {
+              el.focus()
+              el.value = '${value.replace(/'/g, "\\'")}'
+              el.dispatchEvent(new Event('input', { bubbles: true }))
+              return '✅ 已填写内容'
+            }
+            return '❌ 未找到元素'
+          })()
+        `)
+        showAutoResult(result)
+      } catch (e) {
+        showAutoResult('❌ 错误: ' + e.message)
+      }
+    }
+
+    async function autoExtract() {
+      const selector = document.getElementById('extract-selector').value.trim()
+      const type = document.getElementById('extract-type').value
+      if (!selector) return showAutoResult('❌ 请输入选择器')
+      
+      try {
+        const js = `
+          (function() {
+            const els = document.querySelectorAll('${selector.replace(/'/g, "\\'")}')
+            if (els.length === 0) return { error: '❌ 未找到元素' }
+            return { count: els.length, data: Array.from(els).slice(0, 10).map(el => {
+              if ('${type}' === 'text') return el.textContent.trim().substring(0, 200)
+              if ('${type}' === 'html') return el.outerHTML.substring(0, 300)
+              if ('${type}' === 'attr') return { tag: el.tagName, id: el.id, class: el.className }
+            }) }
+          })()
+        `
+        const result = await webview.executeJavaScript(js)
+        if (result.error) {
+          showAutoResult(result.error)
+        } else {
+          showAutoResult(`✅ 找到 ${result.count} 个元素:\n` + JSON.stringify(result.data, null, 2))
+        }
+      } catch (e) {
+        showAutoResult('❌ 错误: ' + e.message)
+      }
+    }
+
+    async function execCustomJS() {
+      const code = document.getElementById('custom-js').value.trim()
+      if (!code) return showAutoResult('❌ 请输入代码')
+      
+      try {
+        const result = await webview.executeJavaScript(`(function() { try { return { success: true, result: (function() { ${code} })() } } catch(e) { return { success: false, error: e.message } } })()`)
+        if (result.success) {
+          showAutoResult('✅ 执行成功:\n' + JSON.stringify(result.result, null, 2))
+        } else {
+          showAutoResult('❌ 执行错误:\n' + result.error)
+        }
+      } catch (e) {
+        showAutoResult('❌ 语法错误: ' + e.message)
+      }
+    }
+
+    // ==================== 启动 ====================
+    init()
+  </script>
+</body>
+</html>
