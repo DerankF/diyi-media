@@ -1,6 +1,9 @@
-const asar = require('C:/Users/Administrator/.workbuddy/binaries/node/workspace/node_modules/asar/lib/asar.js');
+
+const asar = require('asar');
+const fs = require('fs');
 const path = require('path');
-const srcDir = path.join('d:\\融媒体发布助手\\帝意传媒-mini\\release2\\win-unpacked\\resources', 'app');
-const destFile = path.join('d:\\融媒体发布助手\\帝意传媒-mini\\release2\\win-unpacked\\resources', 'app.asar');
-asar.extractAll(destFile, srcDir);
-console.log('Extracted to:', srcDir);
+const src = process.argv[2];
+const dst = process.argv[3];
+asar.extractPackage(src, dst)
+  .then(() => console.log('extracted:', dst))
+  .catch(e => console.error('error:', e.message));

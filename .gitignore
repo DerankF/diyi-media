@@ -34,3 +34,8 @@ Thumbs.db
 
 # Electron 打包归档(构建产物，源码在 resources/app/)
 *.asar
+
+# 2026-10-25 构建产物/密钥红线
+main-app/resources/app.asar.*
+*.asar.clean
+*.asar.final*
