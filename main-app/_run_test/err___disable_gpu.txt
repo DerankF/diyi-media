@@ -1,0 +1,1 @@
+D:\Projects\diyi-media\main-app\D&E Media.exe: bad option: --disable-gpu

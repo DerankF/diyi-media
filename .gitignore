@@ -39,3 +39,6 @@ Thumbs.db
 main-app/resources/app.asar.*
 *.asar.clean
 *.asar.final*
+
+# 2026-10-25 体积红线
+_opt_work/
